@@ -74,7 +74,7 @@ export class BookRenderer {
     const edgeColor = new THREE.Color(PAPER);
     const mat = (normal, opts) => {
       const m = new THREE.MeshBasicMaterial(opts);
-      this.faceMaterials.push({ material: m, normal });
+      this.faceMaterials.push({ material: m, normal, base: m.color.clone() });
       return m;
     };
     const boxMaterials = (overrides, base) => {
@@ -87,17 +87,25 @@ export class BookRenderer {
     applySpineShade(spineGeo, S);
     const spineFace = side < 0 ? 1 : 0; // nx / px
     const spineMat = mat(side < 0 ? [-1, 0, 0] : [1, 0, 0], { map: tex(textures.spine), vertexColors: true });
-    const spineMesh = new THREE.Mesh(spineGeo, boxMaterials({ [spineFace]: spineMat }, edgeColor));
+    // 背の前後端面（表1・表4の板と接する角）は紙口色だと周囲の表紙色との差が
+    // 強すぎて1px幅の白い線に見えるため、接する表紙の色を借りて馴染ませる。
+    const spineFrontCap = mat([0, 0, 1], { color: averageColor(textures.front) });
+    const spineBackCap = mat([0, 0, -1], { color: averageColor(textures.back) });
+    const spineMesh = new THREE.Mesh(spineGeo, boxMaterials({ [spineFace]: spineMat, 4: spineFrontCap, 5: spineBackCap }, edgeColor));
     spineMesh.position.set(side * (W / 2 - t / 2), 0, 0);
     g.add(spineMesh);
 
     // 表1・表4の板（幅 W - t）。BoxGeometry の +Z / -Z 面は外から見て正立・非鏡像になる。
+    // 背と接する側面（紙口色のままだと背のテクスチャ色との差が強すぎて1px幅の白い線に見える）は、
+    // 背の色を借りて馴染ませる。
     const boardW = W - t;
     const boardX = -side * (t / 2);
-    const front = new THREE.Mesh(new THREE.BoxGeometry(boardW, H, t), boxMaterials({ 4: mat([0, 0, 1], { map: tex(textures.front) }) }, edgeColor));
+    const boardSpineSide = side < 0 ? [-1, 0, 0] : [1, 0, 0];
+    const spineEdgeColor = averageColor(textures.spine);
+    const front = new THREE.Mesh(new THREE.BoxGeometry(boardW, H, t), boxMaterials({ [spineFace]: mat(boardSpineSide, { color: spineEdgeColor.clone() }), 4: mat([0, 0, 1], { map: tex(textures.front) }) }, edgeColor));
     front.position.set(boardX, 0, S / 2 - t / 2);
     g.add(front);
-    const back = new THREE.Mesh(new THREE.BoxGeometry(boardW, H, t), boxMaterials({ 5: mat([0, 0, -1], { map: tex(textures.back) }) }, edgeColor));
+    const back = new THREE.Mesh(new THREE.BoxGeometry(boardW, H, t), boxMaterials({ [spineFace]: mat(boardSpineSide, { color: spineEdgeColor.clone() }), 5: mat([0, 0, -1], { map: tex(textures.back) }) }, edgeColor));
     back.position.set(boardX, 0, -(S / 2 - t / 2));
     g.add(back);
 
@@ -178,9 +186,9 @@ export class BookRenderer {
     const m = camera.matrixWorld.elements;
     const right = [m[0], m[1], m[2]];
     const up = [m[4], m[5], m[6]];
-    for (const { material, normal } of this.faceMaterials) {
+    for (const { material, normal, base } of this.faceMaterials) {
       const b = faceBrightness(normal, dir, up, right);
-      material.color.setRGB(b, b, b, THREE.LinearSRGBColorSpace);
+      material.color.setRGB(base.r * b, base.g * b, base.b * b, THREE.LinearSRGBColorSpace);
     }
 
     // 角度によらず同じ縮尺（本を囲む球が画像に収まる）。回しても本の大きさが変わらない
@@ -216,6 +224,25 @@ function applySpineShade(geo, depth) {
     colors.set([tint, tint, tint], i * 3);
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+}
+
+// canvasのおおよその平均色（8x8に縮小して平均）。背の端面を接する表紙色で馴染ませるのに使う。
+function averageColor(canvas) {
+  const n = 8;
+  const small = document.createElement('canvas');
+  small.width = n;
+  small.height = n;
+  const sctx = small.getContext('2d');
+  sctx.drawImage(canvas, 0, 0, n, n);
+  const data = sctx.getImageData(0, 0, n, n).data;
+  let r = 0, g = 0, b = 0, count = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    r += data[i];
+    g += data[i + 1];
+    b += data[i + 2];
+    count++;
+  }
+  return new THREE.Color(r / count / 255, g / count / 255, b / count / 255);
 }
 
 // 紙の断面。乱数は固定シードで毎回同じ模様にする（決定論的）。

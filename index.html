@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0b0b0c" media="(prefers-color-scheme: dark)">
+  <title>書影モックアップ｜カバーPDFから立体書影PNG</title>
+  <meta name="description" content="印刷用の展開カバーPDFから、判型と背幅を反映した立体書影（透過PNG）をブラウザ内で作ります。PDFは外部に送信されません。">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://edi-tool.github.io/cover_image/">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="edi-tool">
+  <meta property="og:title" content="書影モックアップ｜カバーPDFから立体書影PNG">
+  <meta property="og:description" content="展開カバーPDFから、判型と背幅を反映した立体書影PNGをブラウザ内で作ります。">
+  <meta property="og:url" content="https://edi-tool.github.io/cover_image/">
+  <meta property="og:locale" content="ja_JP">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="modulepreload" href="js/app.js">
+</head>
+<body>
+  <nav class="et-bar" aria-label="現在地">
+    <div class="et-bar-inner">
+      <a class="et-home" href="https://edi-tool.github.io/"><span class="et-mark" aria-hidden="true"></span>edi-tool</a>
+      <svg class="et-sep" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+      <span class="et-current" aria-current="page">書影モックアップ</span>
+    </div>
+  </nav>
+
+  <main class="app">
+    <header class="intro">
+      <h1>書影モックアップ</h1>
+      <p class="sub">印刷用の展開カバーPDFから、判型・背幅どおりの立体書影を透過PNGで作ります。処理はすべてこの端末のブラウザ内で行い、PDFは送信しません。</p>
+    </header>
+
+    <noscript><p class="notice notice-error" data-icon="warn">JavaScriptを有効にしてください。</p></noscript>
+    <p id="globalNotice" class="notice" hidden></p>
+
+    <div class="layout">
+      <section class="panel" id="stepFile" aria-labelledby="h-file">
+        <h2 id="h-file"><span class="num" aria-hidden="true">1</span>PDFを選ぶ</h2>
+        <label class="drop" id="dropZone">
+          <input type="file" id="fileInput" accept="application/pdf,.pdf" class="visually-hidden">
+          <span class="drop-main"><span class="et-i et-i-arrow-down" aria-hidden="true"></span>カバーPDFを選ぶ</span>
+          <span class="drop-sub">またはここへドロップ（表1・背・表4が並んだ展開PDF）</span>
+        </label>
+        <p id="fileStatus" class="status" role="status" aria-live="polite"></p>
+        <div class="row" id="pageControls" hidden>
+          <label class="field field-inline">ページ
+            <select id="pageSelect"></select>
+          </label>
+          <button type="button" class="btn" id="rotateBtn">90°回転</button>
+          <span class="tag" id="rotationTag">回転 0°</span>
+        </div>
+      </section>
+
+      <section class="panel" id="stepSpec" aria-labelledby="h-spec">
+        <h2 id="h-spec"><span class="num" aria-hidden="true">2</span>判型・背幅・綴じ</h2>
+        <fieldset class="chips">
+          <legend>判型</legend>
+          <label class="chip"><input type="radio" name="trim" value="B5"><span>B5 <small>182×257</small></span></label>
+          <label class="chip"><input type="radio" name="trim" value="A5" checked><span>A5 <small>148×210</small></span></label>
+          <label class="chip"><input type="radio" name="trim" value="shiroku"><span>四六 <small>127×188</small></span></label>
+        </fieldset>
+        <div class="field">
+          <label for="spineInput">背幅（mm）</label>
+          <input type="text" id="spineInput" inputmode="decimal" autocomplete="off" placeholder="例: 16" aria-describedby="spineHelp spineError">
+          <p id="spineHelp" class="help">0.1〜100mm、0.1mm単位。束見本・台割の値を入力します。</p>
+          <p id="spineError" class="field-error" hidden></p>
+        </div>
+        <fieldset class="chips">
+          <legend>綴じ</legend>
+          <label class="chip"><input type="radio" name="binding" value="left" checked><span>左綴じ <small>横書き</small></span></label>
+          <label class="chip"><input type="radio" name="binding" value="right"><span>右綴じ <small>縦書き</small></span></label>
+        </fieldset>
+        <p class="help" id="spreadInfo"></p>
+      </section>
+
+      <section class="panel panel-wide" id="stepCrop" aria-labelledby="h-crop">
+        <h2 id="h-crop"><span class="num" aria-hidden="true">3</span>仕上がり範囲を合わせる</h2>
+        <p class="help">枠の外側の線をトンボの仕上がり線（内側の線）に合わせます。塗り足し・袖・帯は枠の外に出してください。枠の比率は判型と背幅で決まります。</p>
+        <div class="editor-wrap">
+          <canvas id="cropCanvas" tabindex="0" role="application" aria-roledescription="範囲エディタ" aria-label="仕上がり範囲。ドラッグで移動、四隅で拡大縮小、矢印キーで0.1mm移動、Shift併用で1mm、[ と ] で幅を変更、+ と - で表示の拡大縮小、0で全体表示" aria-describedby="cropInfo"></canvas>
+          <p class="editor-empty" id="editorEmpty">PDFを選ぶと、ここに表示されます。</p>
+        </div>
+        <div class="row toolbar">
+          <button type="button" class="btn" id="zoomOutBtn" aria-label="表示を縮小" title="表示を縮小（-）">−</button>
+          <button type="button" class="btn" id="zoomInBtn" aria-label="表示を拡大" title="表示を拡大（+）">＋</button>
+          <button type="button" class="btn" id="fitPageBtn">全体</button>
+          <button type="button" class="btn" id="fitRectBtn">枠に合わせる</button>
+          <button type="button" class="btn" id="resetRectBtn">枠を初期位置へ</button>
+        </div>
+        <p id="cropInfo" class="status" aria-live="polite"></p>
+        <p id="cropWarn" class="notice" hidden></p>
+        <details class="keys">
+          <summary>キーボード操作</summary>
+          <p>範囲エディタを選んでから: 矢印キーで枠を0.1mm移動（Shiftで1mm）／ [ と ] で枠の幅を0.1mm増減（Shiftで1mm）／ + と - で表示の拡大縮小／ 0 で全体表示。マウスでは Ctrl（Macは⌘）＋ホイールで拡大縮小、枠の外をドラッグで表示を移動します。</p>
+        </details>
+      </section>
+
+      <section class="panel panel-wide" id="stepFaces" aria-labelledby="h-faces">
+        <h2 id="h-faces"><span class="num" aria-hidden="true">4</span>面の確認</h2>
+        <p class="help">PDF上の並び順で切り出した面です。左右・天地や、袖・トンボが混ざっていないか確認してください。</p>
+        <p id="facesStatus" class="status" role="status" aria-live="polite"></p>
+        <div class="faces" id="faces" aria-live="polite"></div>
+      </section>
+
+      <section class="panel panel-wide" id="stepMockup" aria-labelledby="h-mock">
+        <h2 id="h-mock"><span class="num" aria-hidden="true">5</span>角度を選んでPNG保存</h2>
+        <div class="mock-grid">
+          <div class="preview-wrap checker" id="previewWrap">
+            <canvas id="previewCanvas" aria-label="立体書影のプレビュー"></canvas>
+            <p class="editor-empty" id="previewEmpty">背幅を入力し、PDFを選ぶと表示されます。</p>
+          </div>
+          <div class="mock-controls">
+            <fieldset class="chips chips-grid" id="presetChips">
+              <legend>角度</legend>
+            </fieldset>
+            <details class="adjust">
+              <summary>角度の微調整</summary>
+              <label class="field">水平 <output id="yawOut">0°</output>
+                <input type="range" id="yawRange" min="-45" max="45" step="1" value="0">
+              </label>
+              <label class="field">仰角 <output id="pitchOut">0°</output>
+                <input type="range" id="pitchRange" min="-30" max="30" step="1" value="0">
+              </label>
+              <button type="button" class="btn" id="adjustResetBtn">微調整を戻す</button>
+            </details>
+            <fieldset class="chips">
+              <legend>背景</legend>
+              <label class="chip"><input type="radio" name="bg" value="transparent" checked><span>透過</span></label>
+              <label class="chip"><input type="radio" name="bg" value="white"><span>白</span></label>
+            </fieldset>
+            <fieldset class="chips">
+              <legend>サイズ（正方形）</legend>
+              <label class="chip"><input type="radio" name="size" value="1200"><span>1200px</span></label>
+              <label class="chip"><input type="radio" name="size" value="2000" checked><span>2000px</span></label>
+              <label class="chip"><input type="radio" name="size" value="3000"><span>3000px</span></label>
+            </fieldset>
+            <label class="switch"><input type="checkbox" id="shadowToggle" checked><span>影をつける</span></label>
+            <div class="actions">
+              <button type="button" class="btn btn-primary" id="saveBtn" disabled><span class="et-i et-i-arrow-down" aria-hidden="true"></span>PNGを保存</button>
+              <button type="button" class="btn" id="cancelBtn" hidden>中止</button>
+            </div>
+            <p id="saveStatus" class="status" role="status" aria-live="polite"></p>
+            <p id="textureNote" class="help"></p>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <details class="et-about">
+      <summary>このツールについて・制約<span class="et-i et-i-chevron-down" aria-hidden="true"></span></summary>
+      <div class="et-about-body">
+        <h2>できること</h2>
+        <p>印刷用の展開カバーPDF（表4・背・表1が横に並んだもの）から、判型と背幅どおりの立体書影を作り、透過または白背景のPNGで保存します。PDFは高解像度で再描画するため、プレビューを拡大した画像ではありません。</p>
+        <h2>送信しないこと</h2>
+        <p>PDFの読み込み・描画・PNG作成はすべてブラウザ内で行います。PDFや画像を外部へ送信・保存せず、生成AIや外部APIも使いません。</p>
+        <h2>色についての注意</h2>
+        <p>CMYK・特色・オーバープリント・透明効果は、PDF.jsが画面用のRGBに変換して描きます。印刷物の色とは一致しません。色校正には使わないでください。</p>
+        <h2>対応範囲</h2>
+        <p>並製本・単冊のみ。判型はB5・A5・四六。帯・上製本・自由視点・一括書き出しは今後の対応予定です。WebGL2が使えない環境では表1の平面画像のみ保存できます。</p>
+        <h2>使用ライブラリ</h2>
+        <p>PDF.js 6.5.438（Apache-2.0）、Three.js r187（MIT）。3Dモデルの構成は book-3d-generator（MIT）を参考にしています。詳細はREADMEを参照してください。</p>
+      </div>
+    </details>
+  </main>
+
+  <div id="et-live" class="et-live" role="status" aria-live="polite"></div>
+  <footer>
+    <a href="https://edi-tool.github.io/"><span class="et-i et-i-chevron-left" aria-hidden="true"></span>edi-tool ツール一覧</a> | &copy; 2026 ISHIKAWA, Natsuki | MIT License
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

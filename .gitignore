@@ -1,0 +1,12 @@
+*.pdf
+*.psd
+*.ai
+*.indd
+*.idml
+samples/
+local/
+output/
+downloads/
+node_modules/
+.DS_Store
+!tests/fixtures/synthetic-*.pdf

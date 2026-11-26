@@ -11,3 +11,4 @@
 - PNG保存（透過/白、1200/2000/3000px、影ON/OFF、PDFから再描画、空・白一色の検出、中止）。WebGL2非対応時は表1の平面PNG。
 - 合成テストPDFの生成スクリプト、node:test（46件）、共通の静的チェックとCI。
 - PDF.js 6.5.438・Three.js 0.187.0 をローカル同梱（`lib/THIRD_PARTY.md`）。
+- ツール名「立体書影さん」、edi-tool 共通のタイトル規約・JSON-LD・OGP画像・ファビコン一式（ハブの `scripts/ogp` で生成）。

@@ -133,6 +133,11 @@ export function clampRect(rect, pageW, pageH) {
   return { x, y, w, h };
 }
 
+// Shift を押しながらの移動: 移動量の大きい方の軸だけに固定する（水平 or 垂直）
+export function lockAxis(dx, dy) {
+  return Math.abs(dx) >= Math.abs(dy) ? { dx, dy: 0, axis: 'x' } : { dx: 0, dy, axis: 'y' };
+}
+
 export function moveRect(rect, dx, dy, pageW, pageH) {
   return clampRect({ ...rect, x: rect.x + dx, y: rect.y + dy }, pageW, pageH);
 }

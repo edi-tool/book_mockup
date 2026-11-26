@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   PT_PER_MM, MM_PER_PT, TRIM_SIZES, parseSpineMm, spreadSizeMm, faceOrder, faceRects, boundaryXs, pixelEdges,
   initialRect, clampRect, moveRect, resizeRect, scaleRectAroundCenter, rectAspect, sizeDeviation, refitRect,
-  toNormalized, fromNormalized, pageToView, viewToPage, fitView, zoomViewAt, faceFractions,
+  toNormalized, fromNormalized, pageToView, viewToPage, fitView, zoomViewAt, faceFractions, lockAxis,
 } from '../js/crop-geometry.js';
 import { coverLayout } from '../scripts/make-test-pdf.mjs';
 
@@ -162,4 +162,12 @@ test('座標の往復: 正規化・表示座標（倍率・パン・DPR非依存
 test('未対応の判型・綴じは例外', () => {
   assert.throws(() => spreadSizeMm('A4', 10));
   assert.throws(() => faceRects({ x: 0, y: 0, w: 1, h: 1 }, 'A5', 10, 'up'));
+});
+
+test('Shift移動: 移動量の大きい軸だけに固定する', () => {
+  assert.deepEqual(lockAxis(10, 3), { dx: 10, dy: 0, axis: 'x' });
+  assert.deepEqual(lockAxis(-2, -9), { dx: 0, dy: -9, axis: 'y' });
+  assert.deepEqual(lockAxis(5, -5), { dx: 5, dy: 0, axis: 'x' });
+  const r = moveRect({ x: 100, y: 100, w: 200, h: 100 }, ...Object.values(lockAxis(40, 12)).slice(0, 2), 1000, 1000);
+  assert.deepEqual([r.x, r.y], [140, 100]);
 });

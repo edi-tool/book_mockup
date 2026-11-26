@@ -5,12 +5,15 @@ import {
   refitRect, rectSizeMm, sizeDeviation, pixelEdges, faceFractions,
 } from './crop-geometry.js';
 import { CropEditor } from './crop-editor.js';
-import { PRESETS, DEFAULT_PRESET, resolveView, FIT_MARGIN } from './views.js';
+import {
+  PRESETS, DEFAULT_PRESET, presetView, customView, orbit, nudge, mirrorAngle, orthoPxPerMm, bookRadius,
+} from './views.js';
 import { neededPxPerMm, planFaceTexture, buildFileName, analyzePixels, validateRender } from './output.js';
 import { composeMockup, canvasToBlob, createCanvas, releaseCanvas } from './compose.js';
 
 const $ = (id) => document.getElementById(id);
-const PREVIEW_MAX = 1400;
+// プレビューは軽く（影なし・低解像度）。保存時だけPDFから高解像度で描き直して影を付ける
+const PREVIEW_MAX = 900;
 // 全体プレビューは軽い版を先に出し、裏で高解像度版に差し替える（透明効果の多いPDFは描画が重い）
 const BASE_QUICK_SIDE = 1000;
 const BASE_FULL_SIDE = 2400;
@@ -29,8 +32,9 @@ const state = {
   spineMm: null,
   binding: 'left',
   rect: null,
-  presetId: DEFAULT_PRESET,
-  adjust: { yaw: 0, pitch: 0 },
+  presetId: DEFAULT_PRESET, // 自由角度のときは null
+  lastPresetId: DEFAULT_PRESET,
+  angle: { yaw: 0, pitch: 0 }, // 自由角度
   background: 'transparent',
   sizePx: 2000,
   shadow: true,
@@ -86,10 +90,9 @@ async function init() {
     });
     state.presetId = 'front';
     document.querySelector('#presetChips input[value="front"]').checked = true;
-    $('yawRange').disabled = true;
-    $('pitchRange').disabled = true;
-    $('adjustResetBtn').disabled = true;
+    $('previewCanvas').removeAttribute('tabindex');
   }
+  updateAngleInfo();
   window.addEventListener('unhandledrejection', (e) => {
     console.error(e.reason);
     showNotice(`予期しないエラーが発生しました: ${e.reason?.message || e.reason}`, 'error');
@@ -144,6 +147,8 @@ function bindInputs() {
   }));
   document.querySelectorAll('input[name="binding"]').forEach((el) => el.addEventListener('change', () => {
     state.binding = el.value;
+    if (!state.presetId) state.angle = mirrorAngle(state.angle);
+    updateAngleInfo();
     updateSpreadInfo();
     syncEditor();
     scheduleFaces(0);
@@ -192,24 +197,9 @@ function bindInputs() {
 
   $('presetChips').addEventListener('change', (e) => {
     if (e.target.name !== 'preset') return;
-    state.presetId = e.target.value;
-    schedulePreview();
+    selectPreset(e.target.value);
   });
-  const yaw = $('yawRange');
-  const pitch = $('pitchRange');
-  const onAdjust = () => {
-    state.adjust = { yaw: Number(yaw.value), pitch: Number(pitch.value) };
-    $('yawOut').textContent = `${yaw.value}°`;
-    $('pitchOut').textContent = `${pitch.value}°`;
-    schedulePreview();
-  };
-  yaw.addEventListener('input', onAdjust);
-  pitch.addEventListener('input', onAdjust);
-  $('adjustResetBtn').addEventListener('click', () => {
-    yaw.value = 0;
-    pitch.value = 0;
-    onAdjust();
-  });
+  bindOrbit($('previewCanvas'));
   document.querySelectorAll('input[name="bg"]').forEach((el) => el.addEventListener('change', () => {
     state.background = el.value;
     $('previewWrap').classList.toggle('is-white', state.background === 'white');
@@ -221,7 +211,6 @@ function bindInputs() {
   }));
   $('shadowToggle').addEventListener('change', (e) => {
     state.shadow = e.target.checked;
-    schedulePreview();
   });
   $('saveBtn').addEventListener('click', () => exportPng());
   $('cancelBtn').addEventListener('click', () => state.exporting?.abort());
@@ -407,7 +396,7 @@ function scheduleFaces(delay = 250) {
 
 function previewPx() {
   const wrap = $('previewWrap');
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
   return Math.max(320, Math.min(PREVIEW_MAX, Math.round(wrap.clientWidth * dpr)));
 }
 
@@ -527,7 +516,78 @@ function clearPreview() {
 }
 
 function currentView() {
-  return resolveView(state.presetId, state.binding, state.adjust);
+  return state.presetId ? presetView(state.presetId, state.binding) : customView(state.angle);
+}
+
+// ---------- 角度 ----------
+function selectPreset(id) {
+  state.presetId = id;
+  state.lastPresetId = id;
+  const input = document.querySelector(`#presetChips input[value="${id}"]`);
+  if (input) input.checked = true;
+  updateAngleInfo();
+  schedulePreview();
+}
+
+// 自由角度へ移る。プリセットの選択表示は外す
+function setCustomAngle(angle) {
+  state.angle = angle;
+  if (state.presetId) {
+    state.presetId = null;
+    const checked = document.querySelector('#presetChips input:checked');
+    if (checked) checked.checked = false;
+  }
+  updateAngleInfo();
+  schedulePreview();
+}
+
+function updateAngleInfo() {
+  const v = currentView();
+  const label = state.presetId ? PRESETS.find((p) => p.id === state.presetId).label : '自由角度';
+  $('angleInfo').textContent = `${label}・水平 ${Math.round(v.yaw)}°・仰角 ${Math.round(v.pitch)}°${v.projection === 'ortho' ? '（正投影）' : ''}`;
+}
+
+// プレビューの左ドラッグで回転、ダブルクリックで直前のプリセット、矢印キーで1°（Shiftで5°）
+function bindOrbit(canvas) {
+  let drag = null;
+  canvas.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || !webglOk || !state.faces || state.exporting) return;
+    canvas.setPointerCapture(e.pointerId);
+    const v = currentView();
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, angle: { yaw: v.yaw, pitch: v.pitch }, moved: false };
+    canvas.classList.add('is-dragging');
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x;
+    const dy = e.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) < 3) return;
+    drag.moved = true;
+    setCustomAngle(orbit(drag.angle, dx, dy));
+  });
+  const end = (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    drag = null;
+    canvas.classList.remove('is-dragging');
+  };
+  canvas.addEventListener('pointerup', end);
+  canvas.addEventListener('pointercancel', end);
+  canvas.addEventListener('dblclick', () => {
+    if (webglOk && state.faces) selectPreset(state.lastPresetId);
+  });
+  canvas.addEventListener('keydown', (e) => {
+    if (!webglOk || !state.faces || state.exporting) return;
+    const step = e.shiftKey ? 5 : 1;
+    const v = currentView();
+    const delta = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
+    if (delta) {
+      e.preventDefault();
+      setCustomAngle(nudge({ yaw: v.yaw, pitch: v.pitch }, delta[0], delta[1]));
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      selectPreset(state.lastPresetId);
+    }
+  });
 }
 
 // 透明背景の本の画像を作る（WebGL2が無い場合は表1の平面）
@@ -536,12 +596,13 @@ function renderBook(size) {
   return renderFlatFront(state.faces.front, size);
 }
 
+// 3Dの正面（正投影）と同じ縮尺で表1を平面に置く
 function renderFlatFront(front, size) {
   const c = createCanvas(size, size);
-  const inner = size * (1 - FIT_MARGIN * 2);
-  const k = inner / Math.max(front.width, front.height);
-  const w = front.width * k;
-  const h = front.height * k;
+  const { W, H, S } = bookDims();
+  const k = orthoPxPerMm(size, bookRadius(W, H, S));
+  const w = W * k;
+  const h = H * k;
   c.getContext('2d').drawImage(front, (size - w) / 2, (size - h) / 2, w, h);
   return c;
 }
@@ -552,14 +613,13 @@ function drawPreview() {
   const canvas = $('previewCanvas');
   try {
     const book = renderBook(size);
-    const composed = composeMockup(book, size, { background: state.background, shadow: state.shadow });
+    const composed = composeMockup(book, size, { background: state.background, shadow: false });
     canvas.width = size;
     canvas.height = size;
     canvas.getContext('2d').drawImage(composed, 0, 0);
     releaseCanvas(book);
     releaseCanvas(composed);
-    const v = currentView();
-    canvas.setAttribute('aria-label', `立体書影のプレビュー（${PRESETS.find((p) => p.id === v.id).label}）`);
+    canvas.setAttribute('aria-label', `立体書影のプレビュー（${$('angleInfo').textContent}）`);
   } catch (err) {
     console.error(err);
     showNotice(`プレビューを描画できませんでした: ${err.message}`, 'error');
@@ -604,7 +664,7 @@ async function exportPng() {
     if (abort.signal.aborted) throw new PdfError('cancelled', '中止しました。');
     const name = buildFileName({
       sourceName: state.fileName,
-      presetId: currentView().id + (state.adjust.yaw || state.adjust.pitch ? '-adj' : ''),
+      presetId: currentView().id,
       trimLabel: TRIM_SIZES[state.trimKey].label,
       spineMm: state.spineMm,
       sizePx: size,

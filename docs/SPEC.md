@@ -34,3 +34,13 @@ index.html, styles.css, js/app.js, pdf-adapter.js, crop-geometry.js（純粋関�
 - renderer/index.html: addPaperbackCore（6面PlaneGeometry）、makePageTex/makePageTexH（CanvasTexture紙目）、applySpineShadow（頂点色グラデーション）、configureImageTexture、makeTexMat（MeshBasicMaterial）、fitView/keepProjectionFramed（Box3・投影）、updateCamera、getExportDataURL（DPR=1/背景切替/復元）、disposeBook、waitForTextures、splitCover、moveCropBoundary。対象機能を抽出して小さいES Modulesへ分離。Tauri/Electron/保存ビュー永続化は移植しない。旧r128の色変換APIを現行版のcolorSpace等へ更新し二重変換を避ける。元のpreserveDrawingBuffer常時true・dataURLは必要性を検討しtoBlob優先。
 - renderer/book-model.js: hardcoverLayout/buildHardcover。上製本はP1。tests/book-camera.test.cjs, book-model.test.cjs, view-presets.test.cjs, workflow.cjsが検証の参考。公開MITコードを使う場合は該当箇所とライセンスを記録。
 - 出典 https://github.com/CommonerOfWestWall/book-3d-generator/blob/main/renderer/index.html / https://github.com/CommonerOfWestWall/book-3d-generator/blob/main/renderer/book-model.js / https://github.com/CommonerOfWestWall/book-3d-generator/blob/main/LICENSE
+
+## 実PDF調査（2026-11-26、ローカルのみ・匿名化）
+手元の実カバーPDF2点を公開せずに調査した。ファイル名・書名は記録しない。
+- 共通: 1ページ・回転なし・暗号化なし・UserUnitなし。MediaBox=CropBox=BleedBox=TrimBoxが用紙全体で、**PDFのボックスから仕上がりは分からない**（トンボからしか分からない）。トンボは0.1mm程度の黒線、塗り足し3mm、四隅は仕上がり線と塗り足し線の二重、面の境界に折りトンボ。左上にファイル情報の文字がある。
+- 見本A: 用紙600×300mm。左綴じ（左から袖・表4・背・表1・袖）。A5で表1/表4とも148.0×210mm、背10.5mm、袖90mm×2。トンボ間の仕上がり幅486.6mm。ICCベースのCMYK画像（600px前後で解像度は高くない）、オーバープリント指定あり。
+- 見本B: 用紙500×370mm。右綴じ（左から袖・表1・背・表4・袖）。四六の高さ188mmだが**表1/表4の幅は128mm（指定値127mmより1mm広い）**、背16mm、袖80mm×2。**同じページの下半分に帯（高さ50mm）が配置**されている。透明グループを多数含むベクター主体で、PDF.jsの描画が重い。
+- 設計への反映:
+  - 枠は「判型の指定値＋背幅」の比率固定のまま（SPECどおり）。見本Bは左右対称なので、指定値の枠を中央に置くと背の位置は一致し、小口側が各1mm内側になるだけ（寸法差0.7%で警告閾値1.5%未満）。独立境界編集は現時点では不要と判断。左右非対称の実例が出たら再検討。
+  - 初期枠はページ中央に置く。見本Aは中央配置で仕上がり線と0.1mm以内に一致。見本Bは帯があるため縦位置を手で合わせる必要がある（矢印キーで可能）。
+  - 帯は仕上がり枠の外に出して除外する。帯の合成はP1候補。

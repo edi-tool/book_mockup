@@ -1,0 +1,17 @@
+url: "https://edi-tool.github.io"
+baseurl: "/cover_image"
+
+plugins:
+  - jekyll-sitemap
+
+# 開発用ファイルを公開ビルドから外す
+exclude:
+  - CLAUDE.md
+  - AGENTS.md
+  - progress.md
+  - README.md
+  - CHANGELOG.md
+  - package.json
+  - scripts/
+  - tests/
+  - docs/

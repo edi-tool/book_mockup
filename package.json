@@ -1,0 +1,14 @@
+{
+  "name": "cover_image",
+  "private": true,
+  "description": "印刷用カバーPDFから判型・背幅を反映した立体書影PNGをブラウザ内で作るツール",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs scripts/*.test.mjs",
+    "check": "node scripts/check-static.mjs",
+    "fixtures": "node scripts/make-test-pdf.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

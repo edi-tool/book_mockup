@@ -148,11 +148,10 @@ select { min-height: 44px; }
 .preview-wrap.checker { background-color: #fff; background-image: linear-gradient(45deg, #e9e9ee 25%, transparent 25%), linear-gradient(-45deg, #e9e9ee 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e9e9ee 75%), linear-gradient(-45deg, transparent 75%, #e9e9ee 75%); background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0; }
 .preview-wrap.is-white { background: #fff; }
 .preview-wrap .editor-empty { color: var(--text-sub); }
-#previewCanvas { display: block; width: 100%; height: 100%; }
+#previewCanvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+#previewCanvas.is-dragging { cursor: grabbing; }
+#previewCanvas:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
-.adjust { margin-top: 12px; }
-.adjust summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 700; }
-.adjust output { font-variant-numeric: tabular-nums; color: var(--text-sub); font-weight: 400; }
 
 /* ===== edi-tool 共通: 線のアイコン ===== */
 .et-i, [data-icon]:not([data-icon=""])::before { content: ""; display: inline-block; flex: none; width: 1.15em; height: 1.15em; vertical-align: -0.2em; background-color: currentColor; -webkit-mask: var(--et-i) center / contain no-repeat; mask: var(--et-i) center / contain no-repeat; }

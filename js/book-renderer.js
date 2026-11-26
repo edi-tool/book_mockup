@@ -4,10 +4,10 @@
 // renderer/index.html の addPaperbackCore / makePageTex / makePageTexH / applySpineShadow /
 // configureImageTexture / disposeBook を参考に、ES Modules と現行の colorSpace API へ書き直した。
 // 主な改変: 寸法をmmで厳密化（外寸 W×H×S を維持）、面ごとのUV向きを綴じ方向で検証、
-// 光はカメラ基準の弱い固定陰影（正面は元絵の色のまま）、構図合わせを射影行列で行う、toDataURLをやめtoBlobへ。
+// 光はカメラ基準の弱い固定陰影（正面は元絵の色のまま）、角度によらない固定縮尺を射影行列で掛ける、toDataURLをやめtoBlobへ。
 import * as THREE from '../lib/three/three.module.js';
 import {
-  cameraDirection, boxCorners, fitTransform, applyFitToMatrix, faceBrightness, PERSPECTIVE_FOV, FIT_MARGIN,
+  cameraDirection, applyFitToMatrix, faceBrightness, fixedScale, perspectiveDistance, bookRadius, PERSPECTIVE_FOV,
 } from './views.js';
 
 const PAPER = '#f6f3ec';
@@ -151,20 +151,21 @@ export class BookRenderer {
     this.faceMaterials = [];
   }
 
-  // view: resolveView() の戻り値。size: 出力の一辺 px。透明背景の本だけを描いた canvas を返す（呼び出し側で合成）。
+  // view: presetView() / customView() の戻り値。size: 出力の一辺 px。透明背景の本だけを描いた canvas を返す（呼び出し側で合成）。
   render(view, size) {
     if (!this.group) throw new Error('本のモデルがありません。');
     if (this.lost) throw new Error('WebGLの描画が中断されました。');
     if (size > this.maxRenderSize) throw new Error(`この端末では${this.maxRenderSize}pxまでしか描画できません。`);
     const { W, H, S } = this.dims;
-    const radius = Math.hypot(W, H, S) / 2;
+    const radius = bookRadius(W, H, S);
     const dir = cameraDirection(view.yaw, view.pitch);
     let camera;
+    let dist = 0;
     if (view.projection === 'ortho') {
       camera = new THREE.OrthographicCamera(-radius, radius, radius, -radius, radius * 0.1, radius * 6);
       camera.position.set(dir[0] * radius * 3, dir[1] * radius * 3, dir[2] * radius * 3);
     } else {
-      const dist = radius / Math.sin((PERSPECTIVE_FOV * Math.PI) / 360) * 1.05;
+      dist = perspectiveDistance(radius);
       camera = new THREE.PerspectiveCamera(PERSPECTIVE_FOV, 1, dist * 0.2, dist * 3);
       camera.position.set(dir[0] * dist, dir[1] * dist, dir[2] * dist);
     }
@@ -182,12 +183,8 @@ export class BookRenderer {
       material.color.setRGB(b, b, b, THREE.LinearSRGBColorSpace);
     }
 
-    // 8頂点を投影して余白8%で中央に収める
-    const ndc = boxCorners(W, H, S).map(([x, y, z]) => {
-      const v = new THREE.Vector3(x, y, z).project(camera);
-      return [v.x, v.y];
-    });
-    const fit = fitTransform(ndc, FIT_MARGIN);
+    // 角度によらず同じ縮尺（本を囲む球が画像に収まる）。回しても本の大きさが変わらない
+    const fit = { k: fixedScale(view.projection, radius, dist), cx: 0, cy: 0 };
     camera.projectionMatrix.fromArray(applyFitToMatrix(camera.projectionMatrix.toArray(), fit));
     camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
 

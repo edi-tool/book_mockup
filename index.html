@@ -147,23 +147,15 @@
         <h2 id="h-mock"><span class="num" aria-hidden="true">5</span>角度を選んでPNG保存</h2>
         <div class="mock-grid">
           <div class="preview-wrap checker" id="previewWrap">
-            <canvas id="previewCanvas" aria-label="立体書影のプレビュー"></canvas>
+            <canvas id="previewCanvas" tabindex="0" aria-label="立体書影のプレビュー" aria-describedby="angleHelp"></canvas>
             <p class="editor-empty" id="previewEmpty">背幅を入力し、PDFを選ぶと表示されます。</p>
           </div>
           <div class="mock-controls">
             <fieldset class="chips chips-grid" id="presetChips">
               <legend>角度</legend>
             </fieldset>
-            <details class="adjust">
-              <summary>角度の微調整</summary>
-              <label class="field">水平 <output id="yawOut">0°</output>
-                <input type="range" id="yawRange" min="-45" max="45" step="1" value="0">
-              </label>
-              <label class="field">仰角 <output id="pitchOut">0°</output>
-                <input type="range" id="pitchRange" min="-30" max="30" step="1" value="0">
-              </label>
-              <button type="button" class="btn" id="adjustResetBtn">微調整を戻す</button>
-            </details>
+            <p id="angleInfo" class="status" aria-live="polite"></p>
+            <p id="angleHelp" class="help">プレビューをドラッグで自由な角度に回せます。ダブルクリックで直前の角度に戻ります。選択中は矢印キーで1°（Shiftで5°）、Homeで戻ります。プレビューは軽い表示で、保存時にPDFから描き直します。</p>
             <fieldset class="chips">
               <legend>背景</legend>
               <label class="chip"><input type="radio" name="bg" value="transparent" checked><span>透過</span></label>
@@ -175,7 +167,7 @@
               <label class="chip"><input type="radio" name="size" value="2000" checked><span>2000px</span></label>
               <label class="chip"><input type="radio" name="size" value="3000"><span>3000px</span></label>
             </fieldset>
-            <label class="switch"><input type="checkbox" id="shadowToggle" checked><span>影をつける</span></label>
+            <label class="switch"><input type="checkbox" id="shadowToggle" checked><span>影をつける（保存時）</span></label>
             <div class="actions">
               <button type="button" class="btn btn-primary" id="saveBtn" disabled><span class="et-i et-i-arrow-down" aria-hidden="true"></span>PNGを保存</button>
               <button type="button" class="btn" id="cancelBtn" hidden>中止</button>
@@ -197,7 +189,7 @@
         <h2>色についての注意</h2>
         <p>CMYK・特色・オーバープリント・透明効果は、PDF.jsが画面用のRGBに変換して描きます。印刷物の色とは一致しません。色校正には使わないでください。</p>
         <h2>対応範囲</h2>
-        <p>並製本・単冊のみ。判型はB5・A5・四六。帯・上製本・自由視点・一括書き出しは今後の対応予定です。WebGL2が使えない環境では表1の平面画像のみ保存できます。</p>
+        <p>並製本・単冊のみ。判型はB5・A5・四六。角度はプリセットのほか、プレビューのドラッグで自由に選べます。帯・上製本・一括書き出しは今後の対応予定です。WebGL2が使えない環境では表1の平面画像のみ保存できます。</p>
         <h2>使用ライブラリ</h2>
         <p>PDF.js 6.5.438（Apache-2.0）、Three.js r187（MIT）。3Dモデルの構成は book-3d-generator（MIT）を参考にしています。詳細はREADMEを参照してください。</p>
       </div>

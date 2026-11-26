@@ -1,4 +1,4 @@
-// 角度プリセットと構図合わせ（Three.jsに依存しない純粋関数）。
+// 角度プリセット・自由角度・縮尺（Three.jsに依存しない純粋関数）。
 // 書籍は原点中心、表1=+Z、表4=-Z、左綴じの背=-X、右綴じの背=+X。
 // yaw: カメラの水平角（0=表1の正面、+は小口側＝左綴じで+X）、pitch: 仰角（+は見下ろし）。
 
@@ -12,9 +12,10 @@ export const PRESETS = Object.freeze([
 ].map(Object.freeze));
 
 export const DEFAULT_PRESET = 'front-spine';
-export const ADJUST_RANGE = Object.freeze({ yaw: 45, pitch: 30 });
 export const PERSPECTIVE_FOV = 20; // 望遠相当の画角（度）。歪みを抑える
-export const FIT_MARGIN = 0.08; // 画像の各辺の余白（割合）
+export const FIXED_MARGIN = 0.04; // 本を囲む球が画像の各辺から4%内側に収まる縮尺
+export const PITCH_LIMIT = 70;
+export const DRAG_DEG_PER_PX = 0.4;
 
 export function getPreset(id) {
   const preset = PRESETS.find((p) => p.id === id);
@@ -22,16 +23,34 @@ export function getPreset(id) {
   return preset;
 }
 
-// 右綴じは背が+X側になるため水平角を左右反転する。微調整（adjust）も反転後の向きで加える。
-export function resolveView(presetId, binding, adjust = { yaw: 0, pitch: 0 }) {
-  const preset = getPreset(presetId);
+// プリセットの角度。右綴じは背が+X側になるため水平角を左右反転する。
+export function presetView(presetId, binding) {
+  const p = getPreset(presetId);
   const mirror = binding === 'right' ? -1 : 1;
-  const yaw = normalizeDeg(preset.yaw * mirror + clamp(adjust.yaw || 0, -ADJUST_RANGE.yaw, ADJUST_RANGE.yaw) * mirror);
-  const pitch = clamp(preset.pitch + clamp(adjust.pitch || 0, -ADJUST_RANGE.pitch, ADJUST_RANGE.pitch), -80, 80);
-  const adjusted = Boolean(adjust.yaw || adjust.pitch);
-  // 正面・表4正面は正投影で表紙を歪ませない。微調整したら透視にする。
-  const projection = preset.projection === 'ortho' && !adjusted ? 'ortho' : 'perspective';
-  return { id: preset.id, yaw, pitch, projection };
+  return { id: p.id, yaw: normalizeDeg(p.yaw * mirror), pitch: p.pitch, projection: p.projection };
+}
+
+// ドラッグ量（CSS px）から角度を回す。右へドラッグで本が右へ回る（カメラは左へ）、下へドラッグで上から見る。
+export function orbit(angle, dxPx, dyPx, degPerPx = DRAG_DEG_PER_PX) {
+  return nudge(angle, -dxPx * degPerPx, dyPx * degPerPx * 0.75);
+}
+
+export function nudge(angle, dYaw, dPitch) {
+  return {
+    yaw: normalizeDeg(angle.yaw + dYaw),
+    pitch: clamp(angle.pitch + dPitch, -PITCH_LIMIT, PITCH_LIMIT),
+  };
+}
+
+// 綴じ方向を切り替えたとき、自由角度でも同じ側（背・小口）が見えるよう左右反転する
+export function mirrorAngle(angle) {
+  return { yaw: normalizeDeg(-angle.yaw), pitch: angle.pitch };
+}
+
+export function customView(angle) {
+  const yaw = Math.round(angle.yaw);
+  const pitch = Math.round(angle.pitch);
+  return { id: `custom-y${yaw}p${pitch}`, yaw: angle.yaw, pitch: angle.pitch, projection: 'perspective' };
 }
 
 // 原点から見たカメラ方向の単位ベクトル
@@ -41,28 +60,21 @@ export function cameraDirection(yawDeg, pitchDeg) {
   return [Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)];
 }
 
-// 直方体の8頂点
-export function boxCorners(w, h, d) {
-  const out = [];
-  for (const x of [-w / 2, w / 2]) for (const y of [-h / 2, h / 2]) for (const z of [-d / 2, d / 2]) out.push([x, y, z]);
-  return out;
+// 透視カメラの距離。本を囲む球（半径 radius）が画角に余裕をもって入る距離
+export function perspectiveDistance(radius, fovDeg = PERSPECTIVE_FOV) {
+  return (radius / Math.sin((fovDeg * Math.PI) / 360)) * 1.05;
 }
 
-// 正規化デバイス座標の点群を、余白を残して正方形の中央に収める変換 NDC' = k * (NDC - c)
-export function fitTransform(ndcPoints, margin = FIT_MARGIN) {
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  for (const [x, y] of ndcPoints) {
-    if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error('投影できない頂点があります。');
-    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
-    minY = Math.min(minY, y); maxY = Math.max(maxY, y);
-  }
-  const half = Math.max(maxX - minX, maxY - minY) / 2;
-  if (!(half > 0)) throw new Error('構図を計算できません。');
+// 角度によらず同じ縮尺にする倍率。本を囲む球の見かけの大きさが NDC の 1 - 2*margin に収まる。
+// 正投影の視体積は ±radius、透視は距離 distance・画角 fov を前提にする。
+export function fixedScale(projection, radius, distance, fovDeg = PERSPECTIVE_FOV, margin = FIXED_MARGIN) {
   const target = 1 - margin * 2;
-  return { k: target / half, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
+  if (projection === 'ortho') return target;
+  const silhouette = Math.tan(Math.asin(radius / distance)) / Math.tan((fovDeg * Math.PI) / 360);
+  return target / silhouette;
 }
 
-// 列優先4x4射影行列に fitTransform を掛ける（クリップ空間で x' = k(x - cx·w)）。
+// 列優先4x4射影行列に NDC' = k * (NDC - c) を掛ける（クリップ空間で x' = k(x - cx·w)）。
 export function applyFitToMatrix(elements, fit) {
   const e = elements.slice();
   for (let col = 0; col < 4; col++) {
@@ -71,6 +83,15 @@ export function applyFitToMatrix(elements, fit) {
     e[col * 4 + 1] = fit.k * (e[col * 4 + 1] - fit.cy * w);
   }
   return e;
+}
+
+// 正面（正投影）での 1mm あたりの画素数。WebGL2 が無いときの平面描画も同じ大きさにする。
+export function orthoPxPerMm(sizePx, radius, margin = FIXED_MARGIN) {
+  return (sizePx / 2) * (1 - margin * 2) / radius;
+}
+
+export function bookRadius(W, H, S) {
+  return Math.hypot(W, H, S) / 2;
 }
 
 // カメラに対する固定の光で面の明るさを決める。カメラ正面を向く面はちょうど1（元絵の色）。
@@ -84,6 +105,7 @@ export function faceBrightness(normal, camDir, camUp, camRight, ambient = 0.58) 
 export function normalizeDeg(deg) {
   let d = ((deg + 180) % 360 + 360) % 360 - 180;
   if (d === -180) d = 180;
+  if (Object.is(d, -0)) d = 0;
   return d;
 }
 

@@ -1,62 +1,111 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  PRESETS, resolveView, cameraDirection, boxCorners, fitTransform, applyFitToMatrix, faceBrightness, normalizeDeg,
+  PRESETS, presetView, customView, orbit, nudge, mirrorAngle, cameraDirection, perspectiveDistance, fixedScale,
+  applyFitToMatrix, orthoPxPerMm, bookRadius, faceBrightness, normalizeDeg, PITCH_LIMIT, PERSPECTIVE_FOV, FIXED_MARGIN,
 } from '../js/views.js';
 import {
   neededPxPerMm, planFaceTexture, buildFileName, safeBaseName, analyzePixels, validateRender, MAX_PX_PER_MM,
 } from '../js/output.js';
+import { TRIM_SIZES } from '../js/crop-geometry.js';
 
 const close = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) <= eps, `${a} != ${b}`);
 
 test('プリセットは6種（正面・表1＋背・表1＋小口・表4＋背・表4正面・斜め俯瞰）', () => {
   assert.deepEqual(PRESETS.map((p) => p.id), ['front', 'front-spine', 'front-edge', 'back-spine', 'back', 'overhead']);
+  assert.throws(() => presetView('nope', 'left'));
 });
 
 test('背が見える角度: 左綴じは背=-X側、右綴じは+X側からカメラが見る', () => {
   for (const id of ['front-spine', 'back-spine', 'overhead']) {
-    const l = cameraDirection(resolveView(id, 'left').yaw, 0);
-    const r = cameraDirection(resolveView(id, 'right').yaw, 0);
-    assert.ok(l[0] < 0, `${id} 左綴じ`);
-    assert.ok(r[0] > 0, `${id} 右綴じ`);
+    assert.ok(cameraDirection(presetView(id, 'left').yaw, 0)[0] < 0, `${id} 左綴じ`);
+    assert.ok(cameraDirection(presetView(id, 'right').yaw, 0)[0] > 0, `${id} 右綴じ`);
   }
-  const edge = cameraDirection(resolveView('front-edge', 'left').yaw, 0);
+  const edge = cameraDirection(presetView('front-edge', 'left').yaw, 0);
   assert.ok(edge[0] > 0 && edge[2] > 0);
-  const back = cameraDirection(resolveView('back', 'left').yaw, 0);
-  assert.ok(back[2] < -0.999);
+  assert.ok(cameraDirection(presetView('back', 'left').yaw, 0)[2] < -0.999);
 });
 
-test('正面・表4正面は正投影、微調整すると透視', () => {
-  assert.equal(resolveView('front', 'left').projection, 'ortho');
-  assert.equal(resolveView('back', 'right').projection, 'ortho');
-  assert.equal(resolveView('front', 'left', { yaw: 5, pitch: 0 }).projection, 'perspective');
-  assert.equal(resolveView('overhead', 'left').projection, 'perspective');
-  assert.throws(() => resolveView('nope', 'left'));
+test('正面・表4正面は正投影、自由角度は透視', () => {
+  assert.equal(presetView('front', 'left').projection, 'ortho');
+  assert.equal(presetView('back', 'right').projection, 'ortho');
+  assert.equal(presetView('overhead', 'left').projection, 'perspective');
+  assert.equal(customView({ yaw: 0, pitch: 0 }).projection, 'perspective');
 });
 
-test('微調整は範囲内に制限される', () => {
-  const v = resolveView('front', 'left', { yaw: 999, pitch: -999 });
-  assert.equal(v.yaw, 45);
-  assert.equal(v.pitch, -30);
+test('ドラッグ: 右へで本が右に回る（カメラは左＝yaw減）、下へで見下ろす、仰角は上限で止まる', () => {
+  const a = orbit({ yaw: 0, pitch: 0 }, 50, 0);
+  assert.ok(a.yaw < 0);
+  assert.ok(orbit({ yaw: 0, pitch: 0 }, 0, 40).pitch > 0);
+  assert.equal(orbit({ yaw: 0, pitch: 0 }, 0, 100000).pitch, PITCH_LIMIT);
+  assert.equal(orbit({ yaw: 0, pitch: 0 }, 0, -100000).pitch, -PITCH_LIMIT);
+  assert.equal(nudge({ yaw: 179, pitch: 0 }, 3, 0).yaw, -178);
   assert.equal(normalizeDeg(212), -148);
   assert.equal(normalizeDeg(-180), 180);
+  assert.ok(Object.is(normalizeDeg(-0), 0));
 });
 
-test('構図合わせ: 点群が余白8%で中央に来る', () => {
-  const pts = [[-0.2, 0.1], [0.5, 0.9], [0.1, -0.3]];
-  const fit = fitTransform(pts, 0.08);
-  const mapped = pts.map(([x, y]) => [fit.k * (x - fit.cx), fit.k * (y - fit.cy)]);
-  const xs = mapped.map((p) => p[0]);
-  const ys = mapped.map((p) => p[1]);
-  close(Math.max(...ys), 0.84);
-  close(Math.min(...ys), -0.84);
-  close((Math.max(...xs) + Math.min(...xs)) / 2, 0);
-  assert.throws(() => fitTransform([[0, 0], [0, 0]]));
-  assert.throws(() => fitTransform([[NaN, 0], [1, 1]]));
+test('綴じ切替で自由角度を左右反転し、背の見える側を保つ', () => {
+  const left = { yaw: -40, pitch: 10 };
+  const right = mirrorAngle(left);
+  assert.deepEqual(right, { yaw: 40, pitch: 10 });
+  assert.ok(cameraDirection(left.yaw, 0)[0] < 0 && cameraDirection(right.yaw, 0)[0] > 0);
+});
+
+test('自由角度の出力名用ID', () => {
+  assert.equal(customView({ yaw: -28.4, pitch: 12.6 }).id, 'custom-y-28p13');
+});
+
+// カメラ空間に移して透視/正投影の NDC を計算する（Three.js と同じ lookAt・up=+Y）
+function projectNdc([x, y, z], yaw, pitch, projection, radius) {
+  const d = cameraDirection(yaw, pitch);
+  const fwd = d.map((v) => -v);
+  const right = norm(cross(fwd, [0, 1, 0]));
+  const up = cross(right, fwd);
+  const dist = projection === 'ortho' ? radius * 3 : perspectiveDistance(radius);
+  const rel = [x - d[0] * dist, y - d[1] * dist, z - d[2] * dist];
+  const cx = dot(rel, right), cy = dot(rel, up), depth = dot(rel, fwd);
+  const k = fixedScale(projection, radius, dist);
+  if (projection === 'ortho') return [(cx / radius) * k, (cy / radius) * k];
+  const t = Math.tan((PERSPECTIVE_FOV * Math.PI) / 360);
+  return [(cx / depth / t) * k, (cy / depth / t) * k];
+}
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const norm = (a) => { const l = Math.hypot(...a); return a.map((v) => v / l); };
+
+test('固定縮尺: どの角度・判型・背幅でも本の8頂点が余白4%の内側に収まる', () => {
+  const limit = 1 - FIXED_MARGIN * 2 + 1e-9;
+  for (const trim of Object.values(TRIM_SIZES)) {
+    for (const S of [0.1, 5, 16, 100]) {
+      const { width: W, height: H } = trim;
+      const r = bookRadius(W, H, S);
+      const corners = [];
+      for (const x of [-W / 2, W / 2]) for (const y of [-H / 2, H / 2]) for (const z of [-S / 2, S / 2]) corners.push([x, y, z]);
+      for (let yaw = -180; yaw < 180; yaw += 15) {
+        for (let pitch = -PITCH_LIMIT; pitch <= PITCH_LIMIT; pitch += 10) {
+          for (const proj of ['ortho', 'perspective']) {
+            for (const c of corners) {
+              const [nx, ny] = projectNdc(c, yaw, pitch, proj, r);
+              assert.ok(Math.abs(nx) <= limit && Math.abs(ny) <= limit, `${trim.key} S${S} ${proj} y${yaw} p${pitch}`);
+            }
+          }
+        }
+      }
+    }
+  }
+});
+
+test('固定縮尺: 角度を変えても縮尺は一定、正投影の正面は表1をmm比どおりに置く', () => {
+  const r = bookRadius(148, 210, 16);
+  const dist = perspectiveDistance(r);
+  close(fixedScale('perspective', r, dist), fixedScale('perspective', r, dist));
+  close(fixedScale('ortho', r, 0), 1 - FIXED_MARGIN * 2);
+  const [, top] = projectNdc([0, 105, 8], 0, 0, 'ortho', r);
+  close(top * 1000, orthoPxPerMm(2000, r) * 105, 1e-6);
 });
 
 test('射影行列への適用は NDC で k(x-c) と一致する（透視の w も考慮）', () => {
-  // 適当な透視行列（列優先）
   const f = 1 / Math.tan(Math.PI / 18);
   const m = [f, 0, 0, 0, 0, f, 0, 0, 0, 0, -1.01, -1, 0, 0, -0.2, 0];
   const fit = { k: 1.7, cx: 0.12, cy: -0.3 };
@@ -73,7 +122,6 @@ test('射影行列への適用は NDC で k(x-c) と一致する（透視の w �
     close(b[0] / b[3], fit.k * (a[0] / a[3] - fit.cx), 1e-12);
     close(b[1] / b[3], fit.k * (a[1] / a[3] - fit.cy), 1e-12);
   }
-  assert.equal(boxCorners(2, 3, 4).length, 8);
 });
 
 test('面の明るさ: カメラ正面の面はちょうど1、背けた面は暗い', () => {

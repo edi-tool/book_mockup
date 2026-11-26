@@ -118,7 +118,7 @@
         <h2 id="h-crop"><span class="num" aria-hidden="true">3</span>仕上がり範囲を合わせる</h2>
         <p class="help">枠の外側の線をトンボの仕上がり線（内側の線）に合わせます。塗り足し・袖・帯は枠の外に出してください。枠の比率は判型と背幅で決まります。</p>
         <div class="editor-wrap">
-          <canvas id="cropCanvas" tabindex="0" role="application" aria-roledescription="範囲エディタ" aria-label="仕上がり範囲。ドラッグで移動、四隅で拡大縮小、矢印キーで0.1mm移動、Shift併用で1mm、[ と ] で幅を変更、+ と - で表示の拡大縮小、0で全体表示" aria-describedby="cropInfo"></canvas>
+          <canvas id="cropCanvas" tabindex="0" role="application" aria-roledescription="範囲エディタ" aria-label="仕上がり範囲。ドラッグで移動（Shift併用で水平・垂直に固定）、四隅で拡大縮小、矢印キーで0.1mm移動、Shift併用で1mm、[ と ] で幅を変更、+ と - で表示の拡大縮小、0で全体表示" aria-describedby="cropInfo"></canvas>
           <p class="editor-empty" id="editorEmpty">PDFを選ぶと、ここに表示されます。</p>
         </div>
         <div class="row toolbar">
@@ -132,7 +132,7 @@
         <p id="cropWarn" class="notice" hidden></p>
         <details class="keys">
           <summary>キーボード操作</summary>
-          <p>範囲エディタを選んでから: 矢印キーで枠を0.1mm移動（Shiftで1mm）／ [ と ] で枠の幅を0.1mm増減（Shiftで1mm）／ + と - で表示の拡大縮小／ 0 で全体表示。マウスでは Ctrl（Macは⌘）＋ホイールで拡大縮小、枠の外をドラッグで表示を移動します。</p>
+          <p>範囲エディタを選んでから: 矢印キーで枠を0.1mm移動（Shiftで1mm）／ [ と ] で枠の幅を0.1mm増減（Shiftで1mm）／ + と - で表示の拡大縮小／ 0 で全体表示。マウスでは Shift を押しながら枠をドラッグすると水平または垂直だけに動き、Ctrl（Macは⌘）＋ホイールで拡大縮小、枠の外をドラッグで表示を移動します。</p>
         </details>
       </section>
 

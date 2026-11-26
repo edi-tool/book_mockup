@@ -2,7 +2,7 @@
 // ドラッグ（移動）、四隅（均等拡縮）、ホイール/ピンチ（表示拡大）、キーボード微調整を扱う。
 // 座標の考え方は edi-tool/kokuban-adjust（MIT）の「表示座標と原寸の分離」を参考にした。
 import {
-  PT_PER_MM, FACE_LABELS, faceRects, clampRect, moveRect, resizeRect, scaleRectAroundCenter,
+  PT_PER_MM, FACE_LABELS, faceRects, clampRect, moveRect, lockAxis, resizeRect, scaleRectAroundCenter,
   rectAspect, fitView, zoomViewAt, pageToView, viewToPage,
 } from './crop-geometry.js';
 
@@ -31,6 +31,12 @@ export class CropEditor extends EventTarget {
     canvas.addEventListener('pointercancel', (e) => this.onPointerUp(e));
     canvas.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
     canvas.addEventListener('keydown', (e) => this.onKey(e));
+    // ドラッグ中に Shift を押す・離すと、マウスを動かさなくても軸固定を切り替える
+    this.onShift = (e) => {
+      if (e.key === 'Shift' && this.drag?.mode === 'move') this.applyMove(e.type === 'keydown');
+    };
+    window.addEventListener('keydown', this.onShift);
+    window.addEventListener('keyup', this.onShift);
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(canvas.parentElement);
   }
@@ -257,6 +263,21 @@ export class CropEditor extends EventTarget {
     ctx.strokeStyle = '#ff6a00';
     ctx.lineWidth = 1.5;
     ctx.strokeRect(a.x, a.y, rw, rh);
+    // Shift で軸を固定しているときは、枠の中心を通る補助線を出す
+    if (this.drag?.mode === 'move' && this.drag.axis) {
+      const c = pageToView(v, r.x + r.w / 2, r.y + r.h / 2);
+      ctx.save();
+      ctx.setLineDash([5, 5]);
+      for (const [color, width] of [['#fff', 3], ['#ff6a00', 1.5]]) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        if (this.drag.axis === 'x') { ctx.moveTo(0, c.y); ctx.lineTo(this.cssW, c.y); }
+        else { ctx.moveTo(c.x, 0); ctx.lineTo(c.x, this.cssH); }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
     // 四隅のつまみ
     for (const [hx, hy] of this.cornerPoints()) {
       ctx.fillStyle = '#fff';
@@ -319,7 +340,7 @@ export class CropEditor extends EventTarget {
       const fy = corner < 2 ? 1 : 0;
       this.drag = { mode: 'resize', anchor: { x: r.x + r.w * fx, y: r.y + r.h * fy, fx, fy } };
     } else if (this.insideRect(pt)) {
-      this.drag = { mode: 'move', start: viewToPage(this.view, pt.x, pt.y), rect: { ...this.rect } };
+      this.drag = { mode: 'move', start: viewToPage(this.view, pt.x, pt.y), rect: { ...this.rect }, last: pt };
     } else {
       this.drag = { mode: 'pan', start: pt, view: { ...this.view } };
     }
@@ -349,10 +370,8 @@ export class CropEditor extends EventTarget {
       this.view = { ...d.view, originX: d.view.originX - (pt.x - d.start.x) / d.view.scale, originY: d.view.originY - (pt.y - d.start.y) / d.view.scale };
       this.draw();
     } else if (d.mode === 'move') {
-      const p = viewToPage(this.view, pt.x, pt.y);
-      this.rect = moveRect(d.rect, p.x - d.start.x, p.y - d.start.y, this.page.width, this.page.height);
-      this.draw();
-      this.dispatchEvent(new CustomEvent('change', { detail: { rect: this.rect, commit: false } }));
+      d.last = pt;
+      this.applyMove(e.shiftKey);
     } else if (d.mode === 'resize') {
       const p = viewToPage(this.view, pt.x, pt.y);
       const a = d.anchor;
@@ -362,6 +381,19 @@ export class CropEditor extends EventTarget {
       this.draw();
       this.dispatchEvent(new CustomEvent('change', { detail: { rect: this.rect, commit: false } }));
     }
+  }
+
+  // 枠の移動。shift が真なら水平か垂直に固定する（ドラッグ開始点からの移動量で判定）
+  applyMove(shift) {
+    const d = this.drag;
+    const p = viewToPage(this.view, d.last.x, d.last.y);
+    let dx = p.x - d.start.x;
+    let dy = p.y - d.start.y;
+    d.axis = null;
+    if (shift) ({ dx, dy, axis: d.axis } = lockAxis(dx, dy));
+    this.rect = moveRect(d.rect, dx, dy, this.page.width, this.page.height);
+    this.draw();
+    this.dispatchEvent(new CustomEvent('change', { detail: { rect: this.rect, commit: false } }));
   }
 
   onPointerUp(e) {
@@ -411,6 +443,8 @@ export class CropEditor extends EventTarget {
 
   destroy() {
     this.resizeObserver.disconnect();
+    window.removeEventListener('keydown', this.onShift);
+    window.removeEventListener('keyup', this.onShift);
     clearTimeout(this.detailTimer);
     this.releaseDetail();
   }

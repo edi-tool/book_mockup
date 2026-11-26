@@ -49,7 +49,9 @@ test('公開リポジトリに合成以外のPDF・画像を置かない', () =>
   const files = git.stdout.split('\n').filter(Boolean).filter((f) => !f.startsWith('lib/'));
   const pdfs = files.filter((f) => /\.pdf$/i.test(f));
   assert.deepEqual(pdfs.filter((f) => !allowed.has(f)), []);
-  const images = files.filter((f) => /\.(png|jpe?g|psd|tiff?|ai)$/i.test(f));
+  // 画像は edi-tool 共通の OGP・ファビコン（ハブの scripts/ogp で生成）だけ。生成書影の混入を防ぐ
+  const allowedImages = new Set(['ogp.png', 'favicon.png', 'apple-touch-icon.png']);
+  const images = files.filter((f) => /\.(png|jpe?g|webp|psd|tiff?|ai)$/i.test(f) && !allowedImages.has(f));
   assert.deepEqual(images, [], '画像は置かない（生成書影の混入防止）');
 });
 

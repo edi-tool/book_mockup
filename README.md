@@ -1,4 +1,4 @@
-# cover_image（書影モックアップ）
+# cover_image（立体書影さん）
 
 印刷用の展開カバーPDFから、判型・背幅を反映した立体書影（PNG）をブラウザ内で作るツール。
 公開予定 https://edi-tool.github.io/cover_image/

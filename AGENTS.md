@@ -1,4 +1,4 @@
-# cover_image
+# book_mockup
 実装前に docs/SPEC.md と docs/ACCEPTANCE.md を読む。
 共通方針 https://github.com/edi-tool/.github/blob/main/PRINCIPLES.md
 共通デザイン https://github.com/edi-tool/.github/blob/main/DESIGN.md

@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 修正
+- リポジトリ名変更（cover_image → book_mockup）に合わせ、canonical・OGP・構造化データ・README・_config.yml の baseurl・package名を `https://edi-tool.github.io/book_mockup/` に更新。
 - 3D描画: 背と表1・表4の板が接する境目で、無地（紙口色）の面が明度計算により常にグレー〜白に上書きされ、角度によっては1px幅の白い線に見える不具合を修正（色を保ったまま明度だけ掛けるようにし、背と接する板の側面・背の前後端面は接する面の色を借りて馴染ませた）。
 
 ### 変更

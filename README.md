@@ -1,7 +1,7 @@
-# cover_image（立体書影さん）
+# book_mockup（立体書影さん）
 
 印刷用の展開カバーPDFから、判型・背幅を反映した立体書影（PNG）をブラウザ内で作るツール。
-公開予定 https://edi-tool.github.io/cover_image/
+公開予定 https://edi-tool.github.io/book_mockup/
 
 PDF選択 → 判型・背幅・綴じ → 仕上がり範囲調整 → 面の確認 → 角度 → PNG保存。生成AI・外部API・サーバー処理・解析タグなし。PDFは端末外へ送らない。
 

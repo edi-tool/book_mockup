@@ -1,5 +1,5 @@
 {
-  "name": "cover_image",
+  "name": "book_mockup",
   "private": true,
   "description": "印刷用カバーPDFから判型・背幅を反映した立体書影PNGをブラウザ内で作るツール",
   "type": "module",

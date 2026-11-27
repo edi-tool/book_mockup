@@ -1,3 +1,10 @@
+/*
+SPDX-License-Identifier: Apache-2.0
+Copyright 2026 ISHIKAWA, Natsuki
+Project: edi-tool
+Source: https://github.com/edi-tool
+Applies to original code; third-party materials and separately licensed content retain their terms.
+*/
 // 画面の配線。状態はメモリ上だけに持ち、PDFや設定を保存・送信しない。
 import { openPdf, PdfError } from './pdf-adapter.js';
 import {

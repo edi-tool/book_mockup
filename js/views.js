@@ -1,3 +1,10 @@
+/*
+SPDX-License-Identifier: Apache-2.0
+Copyright 2026 ISHIKAWA, Natsuki
+Project: edi-tool
+Source: https://github.com/edi-tool
+Applies to original code; third-party materials and separately licensed content retain their terms.
+*/
 // 角度プリセット・自由角度・縮尺（Three.jsに依存しない純粋関数）。
 // 書籍は原点中心、表1=+Z、表4=-Z、左綴じの背=-X、右綴じの背=+X。
 // yaw: カメラの水平角（0=表1の正面、+は小口側＝左綴じで+X）、pitch: 仰角（+は見下ろし）。

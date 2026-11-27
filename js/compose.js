@@ -1,3 +1,10 @@
+/*
+SPDX-License-Identifier: Apache-2.0
+Copyright 2026 ISHIKAWA, Natsuki
+Project: edi-tool
+Source: https://github.com/edi-tool
+Applies to original code; third-party materials and separately licensed content retain their terms.
+*/
 // 3D描画結果に影と背景を重ねる（Canvas 2D）。影は本のシルエットから作る別レイヤー。
 // ctx.filter（Safari 18未満は非対応）を使わず、縮小→拡大でぼかして全ブラウザで同じ結果にする。
 

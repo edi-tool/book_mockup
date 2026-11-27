@@ -1,3 +1,10 @@
+/*
+SPDX-License-Identifier: Apache-2.0
+Copyright 2026 ISHIKAWA, Natsuki
+Project: edi-tool
+Source: https://github.com/edi-tool
+Applies to original code; third-party materials and separately licensed content retain their terms.
+*/
 // 判型・背幅・仕上がり枠の計算（DOM・PDF.jsに依存しない純粋関数）。
 // 座標の単位は PDF.js の page.getViewport({ scale: 1, rotation }) の値（UserUnit込みのpt、左上原点）。
 

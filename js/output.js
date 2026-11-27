@@ -1,3 +1,10 @@
+/*
+SPDX-License-Identifier: Apache-2.0
+Copyright 2026 ISHIKAWA, Natsuki
+Project: edi-tool
+Source: https://github.com/edi-tool
+Applies to original code; third-party materials and separately licensed content retain their terms.
+*/
 // 出力サイズ・テクスチャ解像度・ファイル名・空画像判定（DOMに依存しない純粋関数）。
 
 export const OUTPUT_SIZES = Object.freeze([1200, 2000, 3000]);

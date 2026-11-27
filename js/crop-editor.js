@@ -1,3 +1,10 @@
+/*
+SPDX-License-Identifier: Apache-2.0
+Copyright 2026 ISHIKAWA, Natsuki
+Project: edi-tool
+Source: https://github.com/edi-tool
+Applies to original code; third-party materials and separately licensed content retain their terms.
+*/
 // 仕上がり範囲エディタ。ページ全体のプレビューに枠・面境界・枠外マスクを重ね、
 // ドラッグ（移動）、四隅（均等拡縮）、ホイール/ピンチ（表示拡大）、キーボード微調整を扱う。
 // 座標の考え方は edi-tool/kokuban-adjust（MIT）の「表示座標と原寸の分離」を参考にした。

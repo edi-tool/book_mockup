@@ -1,5 +1,5 @@
 url: "https://edi-tool.github.io"
-baseurl: "/cover_image"
+baseurl: "/book_mockup"
 
 plugins:
   - jekyll-sitemap
